@@ -2,114 +2,86 @@ import { Button } from 'components/Button/Button';
 import { ImageGalleryItem } from 'components/ImageGalleryItem/ImageGalleryItem';
 import toast from 'react-hot-toast';
 import { Loader } from 'components/Loader/Loader';
-import { Component } from 'react';
+import { useEffect, useState } from 'react';
 import { getFetchImages } from '../Services';
 import { Modal } from 'components/Modal/Modal';
 import { Gallery } from './ImageGallery.styled';
 import PropTypes from 'prop-types';
-export class ImageGallery extends Component {
-  state = {
-    images: [],
-    isLoading: false,
-    page: 1,
-    totalHits: 1,
-    disableBtn: false,
-    error: '',
-    modalImage: null,
-    modalAlt: null,
-    showModal: false,
-  };
 
-  componentDidUpdate(prevProps, prevState) {
-    const { images, disableBtn } = this.state;
-    const { query, page } = this.props;
+export const ImageGallery = ({ query, page, loadMore }) => {
+  const [images, setImages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [disableBtn, setDisableBtn] = useState(false);
+  const [modalImage, setModalImage] = useState(null);
+  const [modalAlt, setModalAlt] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
-    if (prevProps.query !== query) {
-      this.setState(prevState => ({
-        ...prevState,
-        images: [],
-        totalHits: 0,
-        disableBtn: false,
-      }));
+  useEffect(() => {
+    setImages([]);
+  }, [query]);
+
+  useEffect(() => {
+    if (!query) {
+      setDisableBtn(false);
+      return;
     }
+    const getFetchApi = async () => {
+      try {
+        setIsLoading(true);
 
-    if (prevProps.query !== query || prevProps.page !== page) {
-      this.getFetchApi();
-    }
+        const data = await getFetchImages(query, page);
 
-    if (
-      images.length !== 0 &&
-      !disableBtn &&
-      this.state.totalHits > images.length
-    ) {
-      this.setState({ disableBtn: true });
-    }
-  }
-  async getFetchApi() {
-    try {
-      this.setState({ isLoading: true });
-
-      const { query, page } = this.props;
-
-      const data = await getFetchImages(query, page);
-      this.setState(({ images }) => ({
-        images: [...images, ...data.hits],
-        totalHits: data.totalHits,
-      }));
-
-      if (data.totalHits === 0) {
-        toast.error('Nothing was found for your request', { duration: 1500 });
+        setImages(prevState => {
+          return [...prevState, ...data.hits];
+        });
+        setDisableBtn(true);
+        if (data.totalHits === 0) {
+          toast.error('Nothing was found for your request', { duration: 1500 });
+        }
+      } catch (error) {
+        console.log(error.message);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      this.setState({ error: error.message });
-    } finally {
-      this.setState({ isLoading: false });
-    }
-  }
+    };
+    getFetchApi();
+  }, [page, query]);
 
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({ showModal: !showModal }));
+  const toggleModal = () => {
+    setShowModal(prevState => !prevState);
   };
 
-  handleShowModal = (imageModal, title) => {
-    this.toggleModal();
-    this.setState({ modalImage: imageModal, modalAlt: title });
+  const handleShowModal = (imageModal, title) => {
+    toggleModal();
+    setModalImage(imageModal);
+    setModalAlt(title);
   };
 
-  handleClick = () => {
-    console.log('click');
-  };
-
-  render() {
-    return (
-      <>
-        <Gallery className="gallery">
-          {this.state.images.map(image => {
+  return (
+    <>
+      <Gallery className="gallery">
+        {images.length !== 0 &&
+          images.map(image => {
             return (
               <ImageGalleryItem
                 key={image.id}
                 image={image}
-                onClick={this.handleShowModal}
+                onClick={handleShowModal}
               />
             );
           })}
-        </Gallery>
+      </Gallery>
 
-        {this.state.isLoading && <Loader />}
-        {this.state.disableBtn && this.state.images.length % 12 === 0 && (
-          <Button onClick={() => this.props.loadMore()} />
-        )}
-        {this.state.showModal && (
-          <Modal
-            imageModal={this.state.modalImage}
-            title={this.state.modalAlt}
-            onClose={this.toggleModal}
-          />
-        )}
-      </>
-    );
-  }
-}
+      {isLoading && <Loader />}
+      {disableBtn && images.length % 12 === 0 && (
+        <Button onClick={() => loadMore()} />
+      )}
+      {showModal && (
+        <Modal imageModal={modalImage} title={modalAlt} onClose={toggleModal} />
+      )}
+    </>
+  );
+};
 
 ImageGallery.propTypes = {
   query: PropTypes.string.isRequired,
